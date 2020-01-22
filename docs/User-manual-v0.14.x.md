@@ -95,3 +95,30 @@ Note: if v0.15 ever happens HTTP will be a major focus.
 
 ## Multithreading
 todo
+
+## Compression
+
+uWebsockets supports message compression using the "permessage-deflate" extension. This uses the zlib library's deflate algorithm to "deflate" and "inflate" (compress and uncompress) messages.
+
+It can work in 2 modes:
+
+* **Sliding window**: This keeps a history of previous messages in a "sliding window" buffer for each connection. When compressing subsequent messages, zlib can reference these previous messages to improve the amount compressed. This helps if there is redundant information in multiple messages. You will usually get better compression using this, but at the expense of using more memory, since each connection needs to maintain the sliding window buffer.
+* The default: Every message will be compressed in a new, empty compression window. Redundancy can be removed if it exists inside each contained message, but not if it spans multiple messages. This will not compress messages as well, but it will use less memory.
+
+### Server
+
+Create a group with the `uWS::PERMESSAGE_DEFLATE` and optionally `uWS::SLIDING_DEFLATE_WINDOW` options:
+
+    uWS::Group<uWS::SERVER> *hubGroup = hub.createGroup<uWS::SERVER>(uWS::PERMESSAGE_DEFLATE | uWS::SLIDING_DEFLATE_WINDOW);
+
+When you send messages, pass `true` for the `compress` parameter:
+
+    ws->send(data, size, uWS::OpCode::TEXT, nullptr, nullptr, true);
+
+### Client
+
+Create a group with the `uWS::PERMESSAGE_DEFLATE` option:
+
+    uWS::Group<uWS::CLIENT> *hubGroup = hub.createGroup<uWS::CLIENT>(uWS::PERMESSAGE_DEFLATE);
+
+For now, clients do not support sliding windows.
