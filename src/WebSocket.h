@@ -25,7 +25,7 @@ protected:
 
     void *slidingDeflateWindow = nullptr;
 
-    WebSocket(bool perMessageDeflate, uS::Socket *socket);
+    WebSocket(bool perMessageDeflate, bool serverNoContextTakeover, uS::Socket *socket);
 
     static uS::Socket *onData(uS::Socket *s, char *data, size_t length);
     static void onEnd(uS::Socket *s);

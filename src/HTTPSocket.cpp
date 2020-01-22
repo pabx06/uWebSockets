@@ -103,13 +103,13 @@ uS::Socket *HttpSocket<isServer>::onData(uS::Socket *s, char *data, size_t lengt
                         Header extensions = req.getHeader("sec-websocket-extensions", 24);
                         Header subprotocol = req.getHeader("sec-websocket-protocol", 22);
                         if (secKey.valueLength == 24) {
-                            bool perMessageDeflate;
+                            bool perMessageDeflate, serverNoContextTakeover;
                             httpSocket->upgrade(secKey.value, extensions.value, extensions.valueLength,
-                                               subprotocol.value, subprotocol.valueLength, &perMessageDeflate);
+                                               subprotocol.value, subprotocol.valueLength, &perMessageDeflate, &serverNoContextTakeover);
                             Group<isServer>::from(httpSocket)->removeHttpSocket(httpSocket);
 
                             // Warning: changes socket, needs to inform the stack of Poll address change!
-                            WebSocket<isServer> *webSocket = new WebSocket<isServer>(perMessageDeflate, httpSocket);
+                            WebSocket<isServer> *webSocket = new WebSocket<isServer>(perMessageDeflate, serverNoContextTakeover, httpSocket);
                             webSocket->template setState<WebSocket<isServer>>();
                             webSocket->change(webSocket->nodeData->loop, webSocket, webSocket->setPoll(UV_READABLE));
                             Group<isServer>::from(webSocket)->addWebSocket(webSocket);
@@ -157,9 +157,11 @@ uS::Socket *HttpSocket<isServer>::onData(uS::Socket *s, char *data, size_t lengt
                 }
             } else {
                 if (req.getHeader("upgrade", 7)) {
+                    bool perMessageDeflate = Group<isServer>::from(httpSocket)->extensionOptions & PERMESSAGE_DEFLATE;
+                    bool serverNoContextTakeover = perMessageDeflate; // sliding window not currently supported for clients
 
                     // Warning: changes socket, needs to inform the stack of Poll address change!
-                    WebSocket<isServer> *webSocket = new WebSocket<isServer>(false, httpSocket);
+                    WebSocket<isServer> *webSocket = new WebSocket<isServer>(perMessageDeflate, serverNoContextTakeover, httpSocket);
                     httpSocket->cancelTimeout();
                     webSocket->setUserData(httpSocket->httpUser);
                     webSocket->template setState<WebSocket<isServer>>();
@@ -201,12 +203,13 @@ uS::Socket *HttpSocket<isServer>::onData(uS::Socket *s, char *data, size_t lengt
 // todo: make this into a transformer and make use of sendTransformed
 template <bool isServer>
 void HttpSocket<isServer>::upgrade(const char *secKey, const char *extensions, size_t extensionsLength,
-                                   const char *subprotocol, size_t subprotocolLength, bool *perMessageDeflate) {
+                                   const char *subprotocol, size_t subprotocolLength, bool *perMessageDeflate, bool *serverNoContextTakeover) {
 
     Queue::Message *messagePtr;
 
     if (isServer) {
         *perMessageDeflate = false;
+        *serverNoContextTakeover = false;
         std::string extensionsResponse;
         if (extensionsLength) {
             Group<isServer> *group = Group<isServer>::from(this);
@@ -215,6 +218,9 @@ void HttpSocket<isServer>::upgrade(const char *secKey, const char *extensions, s
             extensionsResponse = extensionsNegotiator.generateOffer();
             if (extensionsNegotiator.getNegotiatedOptions() & PERMESSAGE_DEFLATE) {
                 *perMessageDeflate = true;
+            }
+            if (extensionsNegotiator.getNegotiatedOptions() & SERVER_NO_CONTEXT_TAKEOVER) {
+                *serverNoContextTakeover = true;
             }
         }
 

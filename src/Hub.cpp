@@ -108,7 +108,7 @@ void Hub::onClientConnection(uS::Socket *s, bool error) {
         httpSocket->setState<HttpSocket<CLIENT>>();
         httpSocket->change(httpSocket->nodeData->loop, httpSocket, httpSocket->setPoll(UV_READABLE));
         httpSocket->setNoDelay(true);
-        httpSocket->upgrade(nullptr, nullptr, 0, nullptr, 0, nullptr);
+        httpSocket->upgrade(nullptr, nullptr, 0, nullptr, 0, nullptr, nullptr);
     }
 }
 
@@ -224,6 +224,11 @@ void Hub::connect(std::string uri, void *user, std::map<std::string, std::string
                                      "Host: " + hostname + ":" + std::to_string(port) + "\r\n"
                                      "Sec-WebSocket-Version: 13\r\n";
 
+            if (eh->extensionOptions & PERMESSAGE_DEFLATE) {
+                // clients don't support sliding window for now, so always negotiate server_no_context_takeover
+                httpSocket->httpBuffer += "Sec-WebSocket-Extensions: permessage-deflate; server_no_context_takeover\r\n";
+            }
+
             for (std::pair<std::string, std::string> header : extraHeaders) {
                 httpSocket->httpBuffer += header.first + ": " + header.second + "\r\n";
             }
@@ -247,10 +252,10 @@ void Hub::upgrade(uv_os_sock_t fd, const char *secKey, SSL *ssl, const char *ext
     HttpSocket<SERVER> *httpSocket = new HttpSocket<SERVER>(&s);
     httpSocket->setState<HttpSocket<SERVER>>();
     httpSocket->change(httpSocket->nodeData->loop, httpSocket, httpSocket->setPoll(UV_READABLE));
-    bool perMessageDeflate;
-    httpSocket->upgrade(secKey, extensions, extensionsLength, subprotocol, subprotocolLength, &perMessageDeflate);
+    bool perMessageDeflate, serverNoContextTakeover;
+    httpSocket->upgrade(secKey, extensions, extensionsLength, subprotocol, subprotocolLength, &perMessageDeflate, &serverNoContextTakeover);
 
-    WebSocket<SERVER> *webSocket = new WebSocket<SERVER>(perMessageDeflate, httpSocket);
+    WebSocket<SERVER> *webSocket = new WebSocket<SERVER>(perMessageDeflate, serverNoContextTakeover, httpSocket);
     delete httpSocket;
     webSocket->setState<WebSocket<SERVER>>();
     webSocket->change(webSocket->nodeData->loop, webSocket, webSocket->setPoll(UV_READABLE));

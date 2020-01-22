@@ -5,11 +5,11 @@
 namespace uWS {
 
 template <bool isServer>
-WebSocket<isServer>::WebSocket(bool perMessageDeflate, uS::Socket *socket) : uS::Socket(std::move(*socket)) {
+WebSocket<isServer>::WebSocket(bool perMessageDeflate, bool serverNoContextTakeover, uS::Socket *socket) : uS::Socket(std::move(*socket)) {
     compressionStatus = perMessageDeflate ? CompressionStatus::ENABLED : CompressionStatus::DISABLED;
 
     // if we are created in a group with sliding deflate window allocate it here
-    if (Group<isServer>::from(this)->extensionOptions & SLIDING_DEFLATE_WINDOW) {
+    if (!serverNoContextTakeover && Group<isServer>::from(this)->extensionOptions & SLIDING_DEFLATE_WINDOW) {
         slidingDeflateWindow = Hub::allocateDefaultCompressor(new z_stream{});
     }
 }
