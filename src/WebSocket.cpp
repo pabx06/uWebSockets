@@ -24,7 +24,7 @@ WebSocket<isServer>::WebSocket(bool perMessageDeflate, bool serverNoContextTakeo
  *
  */
 template <bool isServer>
-void WebSocket<isServer>::send(const char *message, size_t length, OpCode opCode, void(*callback)(WebSocket<isServer> *webSocket, void *data, bool cancelled, void *reserved), void *callbackData, bool compress) {
+void WebSocket<isServer>::send(const char *message, size_t length, OpCode opCode, void(*callback)(WebSocket<isServer> *webSocket, void *data, bool cancelled, void *reserved), void *callbackData, bool compress, size_t *compressedSize) {
 
 #ifdef UWS_THREADSAFE
     std::lock_guard<std::recursive_mutex> lockGuard(*nodeData->asyncMutex);
@@ -42,7 +42,8 @@ void WebSocket<isServer>::send(const char *message, size_t length, OpCode opCode
         OpCode opCode;
         bool compress;
         WebSocket<isServer> *s;
-    } transformData = {opCode, compress && compressionStatus == WebSocket<isServer>::CompressionStatus::ENABLED && opCode < 3, this};
+        size_t *compressedSize;
+    } transformData = {opCode, compress && compressionStatus == WebSocket<isServer>::CompressionStatus::ENABLED && opCode < 3, this, compressedSize};
 
     struct WebSocketTransformer {
         static size_t estimate(const char *data, size_t length) {
@@ -52,6 +53,7 @@ void WebSocket<isServer>::send(const char *message, size_t length, OpCode opCode
         static size_t transform(const char *src, char *dst, size_t length, TransformData transformData) {
             if (transformData.compress) {
                 char *deflated = Group<isServer>::from(transformData.s)->hub->deflate((char *) src, length, (z_stream *) transformData.s->slidingDeflateWindow);
+                if (transformData.compressedSize) *transformData.compressedSize = length;
                 return WebSocketProtocol<isServer, WebSocket<isServer>>::formatMessage(dst, deflated, length, transformData.opCode, length, true);
             }
 
@@ -324,6 +326,8 @@ bool WebSocket<isServer>::handleFragment(char *data, size_t length, unsigned int
 
     if (opCode < 3) {
         if (!remainingBytes && fin && !webSocket->fragmentBuffer.length()) {
+            size_t compressedSize = length;
+
             if (webSocket->compressionStatus == WebSocket<isServer>::CompressionStatus::COMPRESSED_FRAME) {
                     webSocket->compressionStatus = WebSocket<isServer>::CompressionStatus::ENABLED;
                     data = group->hub->inflate(data, length, group->maxPayload);
@@ -338,7 +342,7 @@ bool WebSocket<isServer>::handleFragment(char *data, size_t length, unsigned int
                 return true;
             }
 
-            group->messageHandler(webSocket, data, length, (OpCode) opCode);
+            group->messageHandler(webSocket, data, length, (OpCode) opCode, compressedSize);
             if (webSocket->isClosed() || webSocket->isShuttingDown()) {
                 return true;
             }
@@ -346,6 +350,7 @@ bool WebSocket<isServer>::handleFragment(char *data, size_t length, unsigned int
             webSocket->fragmentBuffer.append(data, length);
             if (!remainingBytes && fin) {
                 length = webSocket->fragmentBuffer.length();
+                size_t compressedSize = length;
                 if (webSocket->compressionStatus == WebSocket<isServer>::CompressionStatus::COMPRESSED_FRAME) {
                         webSocket->compressionStatus = WebSocket<isServer>::CompressionStatus::ENABLED;
                         webSocket->fragmentBuffer.append("....");
@@ -363,7 +368,7 @@ bool WebSocket<isServer>::handleFragment(char *data, size_t length, unsigned int
                     return true;
                 }
 
-                group->messageHandler(webSocket, data, length, (OpCode) opCode);
+                group->messageHandler(webSocket, data, length, (OpCode) opCode, compressedSize);
                 if (webSocket->isClosed() || webSocket->isShuttingDown()) {
                     return true;
                 }

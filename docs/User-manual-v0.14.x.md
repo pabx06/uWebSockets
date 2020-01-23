@@ -115,6 +115,11 @@ When you send messages, pass `true` for the `compress` parameter:
 
     ws->send(data, size, uWS::OpCode::TEXT, nullptr, nullptr, true);
 
+If you want to see the size of the message after compression, pass in a pointer to a `size_t` as the last argument:
+
+    size_t compressedSize;
+    ws->send(data, size, uWS::OpCode::TEXT, nullptr, nullptr, true, &compressedSize);
+
 ### Client
 
 Create a group with the `uWS::PERMESSAGE_DEFLATE` option:
@@ -122,3 +127,8 @@ Create a group with the `uWS::PERMESSAGE_DEFLATE` option:
     uWS::Group<uWS::CLIENT> *hubGroup = hub.createGroup<uWS::CLIENT>(uWS::PERMESSAGE_DEFLATE);
 
 For now, clients do not support sliding windows.
+
+If you want to see the size of the message before decompression, use the `onMessage2` handler which gives `compressedSize` as the last argument:
+
+    hubGroup->onMessage2([this](uWS::WebSocket<uWS::CLIENT> *ws, char *message, size_t length, uWS::OpCode opCode, size_t compressedSize) {
+    });

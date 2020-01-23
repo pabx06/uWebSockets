@@ -121,7 +121,7 @@ template <bool isServer>
 Group<isServer>::Group(int extensionOptions, unsigned int maxPayload, Hub *hub, uS::NodeData *nodeData) : uS::NodeData(*nodeData), maxPayload(maxPayload), hub(hub), extensionOptions(extensionOptions) {
     connectionHandler = [](WebSocket<isServer> *, HttpRequest) {};
     transferHandler = [](WebSocket<isServer> *) {};
-    messageHandler = [](WebSocket<isServer> *, char *, size_t, OpCode) {};
+    messageHandler = [](WebSocket<isServer> *, char *, size_t, OpCode, size_t) {};
     disconnectionHandler = [](WebSocket<isServer> *, int, char *, size_t) {};
     pingHandler = pongHandler = [](WebSocket<isServer> *, char *, size_t) {};
     errorHandler = [](errorType) {};
@@ -170,6 +170,13 @@ void Group<isServer>::onTransfer(std::function<void (WebSocket<isServer> *)> han
 
 template <bool isServer>
 void Group<isServer>::onMessage(std::function<void (WebSocket<isServer> *, char *, size_t, OpCode)> handler) {
+    messageHandler = [handler](WebSocket<isServer> *w, char *d, size_t s, OpCode o, size_t) {
+                         handler(w, d, s, o);
+                     };
+}
+
+template <bool isServer>
+void Group<isServer>::onMessage2(std::function<void (WebSocket<isServer> *, char *, size_t, OpCode, size_t)> handler) {
     messageHandler = handler;
 }
 
