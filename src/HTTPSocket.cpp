@@ -157,8 +157,24 @@ uS::Socket *HttpSocket<isServer>::onData(uS::Socket *s, char *data, size_t lengt
                 }
             } else {
                 if (req.getHeader("upgrade", 7)) {
+                    Header extensions = req.getHeader("sec-websocket-extensions", 24);
+
                     bool perMessageDeflate = Group<isServer>::from(httpSocket)->extensionOptions & PERMESSAGE_DEFLATE;
                     bool serverNoContextTakeover = perMessageDeflate; // sliding window not currently supported for clients
+
+                    if (extensions.valueLength) {
+                        Group<isServer> *group = Group<isServer>::from(httpSocket);
+                        Header extensions = req.getHeader("sec-websocket-extensions", 24);
+                        ExtensionsNegotiator<uWS::SERVER> extensionsNegotiator(group->extensionOptions);
+                        extensionsNegotiator.readOffer(std::string(extensions.value, extensions.valueLength));
+
+                        if (!(extensionsNegotiator.getNegotiatedOptions() & PERMESSAGE_DEFLATE)) perMessageDeflate = false;
+                        if (!(extensionsNegotiator.getNegotiatedOptions() & SERVER_NO_CONTEXT_TAKEOVER)) serverNoContextTakeover = false;
+                    } else {
+                        perMessageDeflate = serverNoContextTakeover = false;
+                    }
+
+                    if (!serverNoContextTakeover) perMessageDeflate = false; // can't handle sliding window for now
 
                     // Warning: changes socket, needs to inform the stack of Poll address change!
                     WebSocket<isServer> *webSocket = new WebSocket<isServer>(perMessageDeflate, serverNoContextTakeover, httpSocket);
