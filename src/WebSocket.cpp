@@ -57,6 +57,7 @@ void WebSocket<isServer>::send(const char *message, size_t length, OpCode opCode
                 return WebSocketProtocol<isServer, WebSocket<isServer>>::formatMessage(dst, deflated, length, transformData.opCode, length, true);
             }
 
+            if (transformData.compressedSize) *transformData.compressedSize = length;
             return WebSocketProtocol<isServer, WebSocket<isServer>>::formatMessage(dst, src, length, transformData.opCode, length, false);
         }
     };
