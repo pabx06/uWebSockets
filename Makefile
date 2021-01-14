@@ -12,7 +12,15 @@ OBJS := $(SRCS:.cpp=.o)
 .PHONY: clean all install
 
 
-all: libuWS.a libuWS.so
+all: libuWS.a libuWS.so examples
+
+examples: libuWS.so
+	mkdir -p includes/uWS
+	cp src/*.h includes/uWS
+	echo "remember to sudo cp libuWS.so /usr/lib"
+	$(CXX) examples/client.cpp -o client -I includes -lssl -lcrypto -lz  -luWS
+	$(CXX) examples/echo.cpp -o echo_srv -I includes -lssl -lcrypto -lz  -luWS
+
 
 clean:
 	rm -f src/*.o libuWS.a libuWS.so
@@ -30,4 +38,4 @@ libuWS.a: $(OBJS)
 	$(AR) rs $@ $(OBJS)
 
 libuWS.so: $(OBJS)
-	$(CXX) $(LDFLAGS) -shared -o $@ $(OBJS)
+	$(CXX) $(LDFLAGS) -shared -o $@ $(OBJS) -lssl -lcrypto
