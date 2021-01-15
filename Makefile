@@ -9,21 +9,27 @@ SRCS = src/Extensions.cpp src/Group.cpp src/Networking.cpp src/Hub.cpp src/Node.
 OBJS := $(SRCS:.cpp=.o)
 
 
-.PHONY: clean all install
+.PHONY: clean all install examples
 
 
 all: libuWS.a libuWS.so examples
 
-examples: libuWS.so
+examples: BPSClient client echo_srv
 	mkdir -p includes/uWS
 	cp src/*.h includes/uWS
 	echo "remember to sudo cp libuWS.so /usr/lib"
-	$(CXX) examples/client.cpp -o client -I includes -lssl -lcrypto -lz  -luWS
-	$(CXX) examples/echo.cpp -o echo_srv -I includes -lssl -lcrypto -lz  -luWS
 
+BPSClient:examples/BPSClient.cpp
+	$(CXX) -ggdb examples/BPSClient.cpp -o BPSClient -I includes -lssl -lcrypto -lz -luWS
+
+client: examples/client.cpp libuWS.so
+	$(CXX) -ggdb examples/client.cpp -o client -I includes -lssl -lcrypto -lz -luWS
+
+echo_srv: examples/echo.cpp libuWS.so
+	$(CXX) -ggdb examples/echo.cpp -o echo_srv -I includes -lssl -lcrypto -lz -luWS
 
 clean:
-	rm -f src/*.o libuWS.a libuWS.so
+	rm -f src/*.o libuWS.a libuWS.so echo_srv client BPSClient
 
 install:
 	$(eval PREFIX ?= /usr/local)

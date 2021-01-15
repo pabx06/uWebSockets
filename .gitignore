@@ -3,4 +3,7 @@
 *.so
 client
 echo_srv
+BPSClient
 includes/
+cmake-build-debug/
+examples/BPSClient.cpp
